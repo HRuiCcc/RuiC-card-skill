@@ -7,9 +7,9 @@ SKIP={'.git','__pycache__','node_modules'}
 # Generated single-file viewer bundle: still required to be UTF-8 text, but its
 # minified contents legitimately contain SVG/encoded strings from three.js.
 BUILD_ARTIFACTS={'app.bundle.js'}
-# Repo README asset (donate QR): ships in the repository, excluded from the
-# text-only shareable ZIP.
-REPO_ASSETS={'wechat-donate.png'}
+# Repo README assets (donate QR + demo media): ship in the repository,
+# excluded from the text-only shareable ZIP.
+REPO_ASSETS={'wechat-donate.png','demo.gif','demo.mp4'}
 MAGIC=[b'\x89PNG\r\n\x1a\n',b'\xff\xd8\xff',b'GIF87a',b'GIF89a',b'glTF',b'BLENDER']
 
 def audit(root):

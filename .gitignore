@@ -19,3 +19,6 @@ node_modules/
 
 # 微信赞赏码（README 末尾展示，需入库）
 !assets/wechat-donate.png
+# 演示视频/GIF（README 展示，需入库）
+!assets/demo.gif
+!assets/demo.mp4
