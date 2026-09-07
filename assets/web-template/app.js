@@ -435,7 +435,7 @@ async function init() {
 // the cursor. If WebGL comes back, the full shader engine takes over instead.
 function fallback3D(error) {
   console.warn("[holo-card] WebGL unavailable, using CSS-3D fallback:", error);
-  const roleZ = { background: -72, effects: -38, subject: -12, text: 26, lineart: 44 };
+  const roleZ = { background: -48, effects: -25, subject: -8, text: 16, lineart: 28 };
   const wrap = document.createElement("div");
   wrap.className = "fallback3d";
   const flipper = document.createElement("div");
@@ -654,7 +654,7 @@ function flip(value = !flipped) {
 // Layered relief stack: clearly separated depths so the card reads as a
 // lightbox diorama — subject / effects / text each float on their own plane
 // (offsets in card-space units, card half-height ≈ 5.45).
-const RELIEF_STEP = 0.38;
+const RELIEF_STEP = 0.22;
 function layoutRelief() {
   const z = Number($("depth").value);
   const invScale = 1 / Number($("scale").value);

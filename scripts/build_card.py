@@ -101,7 +101,7 @@ def foil(t,p,x,y):
     n=node(t,'ShaderNodeGroup','镭射条带',x,y); n.node_tree=f; link(t,p,'视差效果',n,'UV'); return n
 main,t=material('01 · 主体 + 背景 / 核心合成')
 out=node(t,'ShaderNodeOutputMaterial','最终表面',1760,360)
-pS=parallax(t,'主体 · 1.25 / 0.4',1.25,.4,-1200,620); pB=parallax(t,'背景 · 1 / −0.25',1,-.25,-1200,-160)
+pS=parallax(t,'主体 · 1.25 / 0.28',1.25,.28,-1200,620); pB=parallax(t,'背景 · 1 / −0.2',1,-.2,-1200,-160)
 sT=tex(t,'subject','主体角色 PNG · 换卡替换这里',pS,-950,600); bT=tex(t,'background','背景图 · 换卡替换这里',pB,-950,-140)
 fs=foil(t,pS,-930,260); fb=foil(t,pB,-930,-500)
 over=node(t,'ShaderNodeMixRGB','叠加 · 主体镭射',-550,570); over.blend_type='OVERLAY'; over.inputs[0].default_value=.22; link(t,sT,'Color',over,1); link(t,fs,'全息颜色',over,2)
@@ -186,7 +186,7 @@ def plane(name,w,h,mat,y=0,thickness=0,coll=cardcol):
 card=plane('主体平面 · 完整视差合成',6.3,9.45,main,0,.045)
 textob=plane('文字平面 · Alpha PNG',6.3,9.45,textmat,-.014)
 # The physical background import is hidden because its BSDF is already mixed into the front face.
-bgmat,bgt=material('06 · 独立背景参考'); bpg=parallax(bgt,'背景复用 · −0.25',1,-.25,-500,100); btex=tex(bgt,'background','背景 PNG',bpg,-280,100); bbs=bsdf(bgt,'背景原理化',0,100); link(bgt,btex,0,bbs,'Base Color'); bout=node(bgt,'ShaderNodeOutputMaterial','表面',350,100); link(bgt,bbs,0,bout,0)
+bgmat,bgt=material('06 · 独立背景参考'); bpg=parallax(bgt,'背景复用 · −0.2',1,-.2,-500,100); btex=tex(bgt,'background','背景 PNG',bpg,-280,100); bbs=bsdf(bgt,'背景原理化',0,100); link(bgt,btex,0,bbs,'Base Color'); bout=node(bgt,'ShaderNodeOutputMaterial','表面',350,100); link(bgt,bbs,0,bout,0)
 bgo=plane('背景平面 · 已在主体材质合成',6.3,9.45,bgmat,.025,coll=refcol); bgo.hide_render=True; bgo.hide_set(True)
 
 def ring(name,w,h,width,mat,y):

@@ -15,8 +15,8 @@
   },
   "parameters": {
     "subjectScale": 1.25,
-    "subjectDepth": 0.4,
-    "backgroundDepth": -0.25,
+    "subjectDepth": 0.28,
+    "backgroundDepth": -0.2,
     "foil": 0.65
   },
   "safeArea": {

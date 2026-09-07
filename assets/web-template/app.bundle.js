@@ -28587,7 +28587,7 @@ async function init() {
 }
 function fallback3D(error) {
   console.warn("[holo-card] WebGL unavailable, using CSS-3D fallback:", error);
-  const roleZ = { background: -72, effects: -38, subject: -12, text: 26, lineart: 44 };
+  const roleZ = { background: -48, effects: -25, subject: -8, text: 16, lineart: 28 };
   const wrap = document.createElement("div");
   wrap.className = "fallback3d";
   const flipper = document.createElement("div");
@@ -28802,7 +28802,7 @@ function flip(value = !flipped) {
   targetX = 0;
   faceLabels();
 }
-var RELIEF_STEP = 0.38;
+var RELIEF_STEP = 0.22;
 function layoutRelief() {
   const z = Number($("depth").value);
   const invScale = 1 / Number($("scale").value);

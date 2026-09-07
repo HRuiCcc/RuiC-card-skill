@@ -20,7 +20,7 @@ Turn the user's description or uploaded reference into a finished, editable Blen
 ## Non-obvious invariants
 
 - All image planes are created in XY with object rotation X=90 degrees. Keep that rotation unapplied. Editing the mesh to simulate the rotation breaks the intended local axes.
-- Default core controls: subject scale 1.25, subject depth 0.4, background depth -0.25; text scale 1 and depth 0. The shared group has inputs `缩放` and `深度`, output `视差效果`. A fixed layout safety mapping can preserve room for text; keep it separate from the user's parallax controls.
+- Default core controls: subject scale 1.25, subject depth 0.28, background depth -0.2; text scale 1 and depth 0. The shared group has inputs `缩放` and `深度`, output `视差效果`. A fixed layout safety mapping can preserve room for text; keep it separate from the user's parallax controls.
 - UV centering and normal transformation alone cannot create full view-dependent parallax. Also transform the viewing direction into the card plane, divide by a bounded normal component, and offset UV by signed depth.
 - The face mixes background and subject BSDF with subject Alpha. Keep metallic=1 and roughness=1 where requested; avoid hiding a bad material under extreme emission.
 - Foil uses mapped bands (scale about 0.55, distortion 7, mapping Y about 32 degrees), a separate pattern image mapping, Multiply/Add, pink-yellow-blue-white ramp and Overlay. The spectrum phase must change with viewing angle, not only time.
