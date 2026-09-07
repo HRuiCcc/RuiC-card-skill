@@ -19,11 +19,21 @@
 
 ## 🎬 演示
 
-拖动、翻面、层次景深、烫金流光——13 秒实拍：
+### 调整前 · 图层分散
 
-![RuiC Card Skill 演示](assets/demo.gif)
+初版层距：主体、特效、文字隔得较开，转动时明显"散开"：
 
-[▶ 观看完整演示视频](assets/demo.mp4)
+![调整前效果](assets/demo-before.gif)
+
+[▶ 观看调整前完整视频](assets/demo-before.mp4)
+
+### 调整后 · 层距收紧（现默认）
+
+调整后：各层收近一档，卡片整体更紧凑，仍保留层次景深——这是当前出厂默认效果：
+
+![调整后效果](assets/demo-after.gif)
+
+[▶ 观看调整后完整视频](assets/demo-after.mp4)
 
 ---
 

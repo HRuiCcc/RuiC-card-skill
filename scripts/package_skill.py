@@ -9,7 +9,7 @@ SKIP={'.git','__pycache__','node_modules'}
 BUILD_ARTIFACTS={'app.bundle.js'}
 # Repo README assets (donate QR + demo media): ship in the repository,
 # excluded from the text-only shareable ZIP.
-REPO_ASSETS={'wechat-donate.png','demo.gif','demo.mp4'}
+REPO_ASSETS={'wechat-donate.png','demo-before.gif','demo-before.mp4','demo-after.gif','demo-after.mp4'}
 MAGIC=[b'\x89PNG\r\n\x1a\n',b'\xff\xd8\xff',b'GIF87a',b'GIF89a',b'glTF',b'BLENDER']
 
 def audit(root):
