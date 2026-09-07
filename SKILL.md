@@ -1,9 +1,9 @@
 ---
-name: holo-card-studio
+name: RuiC-card-skill
 description: Generate interactive 3D holographic collectible-card websites from a user description or reference image, using layered artwork, Blender and Three.js. Includes project-local Blender installation, reusable parallax materials and browser verification.
 ---
 
-# Holo Card Studio
+# RuiC Card Skill
 
 Turn the user's description or uploaded reference into a finished, editable Blender card and an interactive Three.js page. Preserve the requested subject, style, typography and destination. This skill contains code and text only; generated artwork belongs in the user's output project.
 

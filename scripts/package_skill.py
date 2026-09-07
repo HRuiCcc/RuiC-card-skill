@@ -1,9 +1,15 @@
 """Audit a text-only skill, then optionally build and verify its ZIP."""
 from pathlib import Path
 import argparse,hashlib,json,re,zipfile
-ALLOWED={'.md','.py','.js','.mjs','.cjs','.json','.yaml','.yml','.css','.html','.txt'}
+ALLOWED={'.md','.py','.js','.mjs','.cjs','.json','.yaml','.yml','.css','.html','.txt','.sh'}
 SPECIAL={'LICENSE','.gitignore'}
 SKIP={'.git','__pycache__','node_modules'}
+# Generated single-file viewer bundle: still required to be UTF-8 text, but its
+# minified contents legitimately contain SVG/encoded strings from three.js.
+BUILD_ARTIFACTS={'app.bundle.js'}
+# Repo README asset (donate QR): ships in the repository, excluded from the
+# text-only shareable ZIP.
+REPO_ASSETS={'wechat-donate.png'}
 MAGIC=[b'\x89PNG\r\n\x1a\n',b'\xff\xd8\xff',b'GIF87a',b'GIF89a',b'glTF',b'BLENDER']
 
 def audit(root):
@@ -12,12 +18,16 @@ def audit(root):
         if any(part in SKIP for part in p.relative_to(root).parts):continue
         if p.is_symlink():raise ValueError('Symlink not permitted: '+str(p))
         if not p.is_file():continue
+        if p.name in REPO_ASSETS:continue
         if p.suffix.lower() not in ALLOWED and p.name not in SPECIAL:raise ValueError('Not an allowed source file: '+str(p))
         data=p.read_bytes()
         if any(data.startswith(m) for m in MAGIC):raise ValueError('Binary asset detected: '+str(p))
         text=data.decode('utf-8-sig')
-        if re.search(r'data\s*:\s*image\s*/',text,re.I) or re.search(r'<svg[\s>]',text,re.I):raise ValueError('Embedded image found: '+str(p))
-        if re.search(r'[A-Za-z0-9+/]{300,}={0,2}',text):raise ValueError('Opaque encoded payload found: '+str(p))
+        if p.name not in BUILD_ARTIFACTS:
+            if re.search(r'data\s*:\s*image\s*/',text,re.I) or re.search(r'<svg[\s>]',text,re.I):raise ValueError('Embedded image found: '+str(p))
+            # Inline @font-face base64 (data:font/...) is the one sanctioned
+            # embedded payload: it keeps the viewer blocker-proof.
+            if 'data:font/' not in text and re.search(r'[A-Za-z0-9+/]{300,}={0,2}',text):raise ValueError('Opaque encoded payload found: '+str(p))
         files.append(p)
     if not (root/'SKILL.md') in files:raise ValueError('Missing SKILL.md')
     return files

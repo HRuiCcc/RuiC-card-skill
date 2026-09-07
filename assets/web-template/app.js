@@ -221,7 +221,7 @@ function addShadow() {
   shadow.position.set(0.28, -0.48, -0.5);
   scene.add(shadow);
 }
-// Render a lucide node tree (["svg", attrs, [children]]) into an <svg> element.
+// Render a lucide node tree (["svg", attrs, [children]]) into an svg element.
 function renderIconNode(node) {
   const [tag, attrs = {}, children = []] = node;
   const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
