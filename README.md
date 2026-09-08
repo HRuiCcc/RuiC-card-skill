@@ -153,7 +153,8 @@ RuiC-card-skill/
 │   ├── build_card.py           # 生成可编辑的 Blender 场景
 │   ├── export_web.py           # 导出卡片几何
 │   ├── generate_typography.py  # 精确的透明文字层
-│   ├── validate_assets.py      # 四层图体检
+│   ├── validate_assets.py      # 四层图体检（棋盘格假透明图自动转真 alpha）
+│   ├── checkerboard_to_alpha.py # 棋盘格底确定性抠透明（附回归测试）
 │   ├── run_pipeline.py         # 一键流水线
 │   └── package_skill.py        # 纯文本打包成可分享的 ZIP
 └── assets/
