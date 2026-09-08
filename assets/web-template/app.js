@@ -44,8 +44,8 @@ void main() {
 const common = `
 precision highp float;
 varying vec2 vUv;
-uniform float uTime, uFoil, uScale, uDepth, uBgDepth, uFinish, uHasLine, uRelief;
-uniform vec2 uFit;
+uniform float uTime, uFoil, uScale, uDepth, uBgDepth, uFinish, uHasLine, uRelief, uSafeScale, uFxDepth, uHasFx;
+uniform vec2 uFit, uSafeOffset;
 uniform vec3 uView;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float inside(vec2 p) { return step(0.,p.x)*step(0.,p.y)*step(p.x,1.)*step(p.y,1.); }
@@ -77,16 +77,21 @@ float sweep(vec2 uv) {
 const frontFragment =
   common +
   `
-uniform sampler2D tSubject, tBackground, tText, tLine;
+uniform sampler2D tSubject, tBackground, tText, tLine, tEffects;
 void main() {
   vec2 uv = vUv;
-  vec2 su = (parallax(uv,uDepth)-.5)*uScale/uFit+.5;
+  vec2 su = ((parallax(uv,uDepth)-.5)*uScale/uFit+.5)*uSafeScale+uSafeOffset;
   vec2 bu = parallax(uv,uBgDepth);
   vec4 subject = texture2D(tSubject,clamp(su,0.,1.));
   subject.a *= inside(su)*(1.-uRelief);
   vec3 bg = texture2D(tBackground,clamp(bu,0.,1.)).rgb;
   vec3 col = mix(bg,subject.rgb,subject.a);
   if (uFinish > 2.5) col = col * vec3(1.02, .95, .78) + vec3(.05, .012, 0.0);
+  // Effects layer floats between the subject and the text: above the character,
+  // below the typography, with its own mid-depth parallax.
+  vec2 eu = parallax(uv,uFxDepth);
+  vec4 fx = texture2D(tEffects,clamp(eu,0.,1.));
+  col = mix(col,fx.rgb,fx.a*(1.-uRelief)*uHasFx);
   vec3 foil = film(uv);
   float amount = strength();
   float luminance = dot(col,vec3(.2126,.7152,.0722));
@@ -151,13 +156,13 @@ const effectsFragment = common + `
 uniform sampler2D tEffects;
 void main() {
   vec4 art=texture2D(tEffects,vUv);
-  float luminance=max(art.r,max(art.g,art.b));
-  float petal=step(art.g*2.,art.r)*smoothstep(.15,.55,art.r)*smoothstep(.15,.5,art.r-art.g);
-  float spark=smoothstep(.76,.96,luminance);
-  float edgeFade=smoothstep(0.,.09,min(min(vUv.x,1.-vUv.x),min(vUv.y,1.-vUv.y)));
-  float alpha=max(petal*.92,spark*.65)*edgeFade;
+  // The relief effects layer is a pre-cut RGBA asset: use its real alpha so
+  // thorn/spark deco keeps its silhouette instead of a color-channel matte.
+  float alpha=art.a;
   if(alpha<.015)discard;
-  gl_FragColor=vec4(pow(art.rgb,vec3(2.2)),alpha);
+  vec3 col=art.rgb;
+  col+=film(vUv)*sweep(vUv)*strength()*.08;
+  gl_FragColor=vec4(pow(clamp(col,0.,1.),vec3(2.2)),alpha);
   #include <colorspace_fragment>
 }
 `;
@@ -306,9 +311,15 @@ async function init() {
     ? await textureLoader.loadAsync(config.assets.lineart)
     : new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
   line.needsUpdate = true;
-  const effects = config.assets.effects ? await textureLoader.loadAsync(config.assets.effects) : line;
+  // Optional effects overlay (sparks/thorn deco): drawn between subject and text.
+  // A transparent 1x1 fallback keeps the front shader valid without it.
+  const hasFx = !!config.assets.effects;
+  const effects = hasFx
+    ? await textureLoader.loadAsync(config.assets.effects)
+    : new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
   effects.colorSpace = THREE.NoColorSpace;
-  [...textures, line].forEach((t) => {
+  if (!hasFx) effects.needsUpdate = true;
+  [...textures, line, effects].forEach((t) => {
     t.colorSpace = THREE.NoColorSpace;
     t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   });
@@ -336,6 +347,17 @@ async function init() {
     uScale: { value: p.subjectScale ?? 1 },
     uDepth: { value: p.subjectDepth ?? 0.32 },
     uBgDepth: { value: p.backgroundDepth ?? -0.18 },
+    uSafeScale: { value: config.safeArea?.scale ?? 1 },
+    // The shader's V axis is flipped relative to Blender's UV space, so the
+    // vertical safe-area offset needs a compensating transform (x is identical).
+    uSafeOffset: {
+      value: new THREE.Vector2(
+        config.safeArea?.offset?.[0] ?? 0,
+        1 - (config.safeArea?.scale ?? 1) - (config.safeArea?.offset?.[1] ?? 0),
+      ),
+    },
+    uFxDepth: { value: p.effectsDepth ?? 0.14 },
+    uHasFx: { value: hasFx ? 1 : 0 },
     uFinish: { value: 0 },
     uHasLine: { value: config.assets.lineart ? 1 : 0 },
     uRelief: { value: config.sourceMode === "relief" ? 1 : 0 },
@@ -435,7 +457,7 @@ async function init() {
 // the cursor. If WebGL comes back, the full shader engine takes over instead.
 function fallback3D(error) {
   console.warn("[holo-card] WebGL unavailable, using CSS-3D fallback:", error);
-  const roleZ = { background: -48, effects: -25, subject: -8, text: 16, lineart: 28 };
+  const roleZ = { background: -48, effects: -25, subject: -8, lineart: 24, text: 28 };
   const wrap = document.createElement("div");
   wrap.className = "fallback3d";
   const flipper = document.createElement("div");
@@ -446,7 +468,7 @@ function fallback3D(error) {
   const front = document.createElement("div");
   front.className = "face3d front3d";
   const layers = new Map();
-  for (const name of ["background", "effects", "subject", "text", "lineart"]) {
+  for (const name of ["background", "effects", "subject", "lineart", "text"]) {
     if (!config?.assets?.[name]) continue;
     const layer = document.createElement("div");
     layer.className = "layer3d";
@@ -456,6 +478,9 @@ function fallback3D(error) {
     img.loading = "eager";
     layer.append(img);
     front.append(layer);
+    // White-background line art must not cover the subject: multiply drops the
+    // white base and keeps only the dark contour strokes on top of the artwork.
+    if (name === "lineart") layer.style.mixBlendMode = "multiply";
     layers.set(name, { el: layer, z: roleZ[name] });
   }
   const foil = document.createElement("div");

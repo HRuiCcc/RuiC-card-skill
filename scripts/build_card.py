@@ -84,7 +84,9 @@ link(f,plus,0,ramp,0); link(f,ramp,0,fo,'全息颜色')
 mask=node(f,'ShaderNodeValToRGB','窄条纹发光遮罩',370,-80); mask.color_ramp.elements[0].position=.76; mask.color_ramp.elements[1].position=.94; link(f,wave,'Fac',mask,0); link(f,mask,0,fo,'条纹遮罩')
 # Loaded images are kept separate and packed for portable blend.
 images={k:bpy.data.images.load(str(R/'assets'/v),check_existing=True) for k,v in {'subject':'subject.png','text':'text.png','background':'background.png','lineart':'lineart.png'}.items()}
+if (R/'assets'/'effects.png').exists(): images['effects']=bpy.data.images.load(str(R/'assets'/'effects.png'),check_existing=True)
 images['lineart'].colorspace_settings.name='Non-Color'
+has_fx='effects' in images
 def material(name):
     m=bpy.data.materials.new(name); m.use_nodes=True; m.node_tree.nodes.clear(); return m,m.node_tree
 
@@ -92,7 +94,7 @@ def parallax(t,name,scale,depth,x,y):
     n=node(t,'ShaderNodeGroup',name,x,y); n.node_tree=g; n.inputs['缩放'].default_value=scale; n.inputs['深度'].default_value=depth; return n
 
 def tex(t,key,name,p,x,y):
-    n=node(t,'ShaderNodeTexImage',name,x,y); n.image=images[key]; n.extension='CLIP' if key in ('subject','text','lineart') else 'EXTEND'; link(t,p,'视差效果',n,'Vector'); return n
+    n=node(t,'ShaderNodeTexImage',name,x,y); n.image=images[key]; n.extension='CLIP' if key in ('subject','text','lineart','effects') else 'EXTEND'; link(t,p,'视差效果',n,'Vector'); return n
 
 def bsdf(t,name,x,y):
     b=node(t,'ShaderNodeBsdfPrincipled',name,x,y); b.inputs['Metallic'].default_value=1; b.inputs['Roughness'].default_value=1; b.inputs['Emission Color'].default_value=(0,0,0,1); return b
@@ -130,7 +132,19 @@ st=val(t,'MULTIPLY','星点 × 闪烁',160,-650); link(t,hs,0,st,0); link(t,nr,0
 stren=val(t,'MULTIPLY','闪星亮度',370,-650,b=5); link(t,st,0,stren,0)
 be=node(t,'ShaderNodeEmission','背景闪星自发光',600,-330); be.inputs['Color'].default_value=(.70,.88,1,1); link(t,stren,0,be,'Strength')
 ba=node(t,'ShaderNodeAddShader','背景 + 闪星',860,-140); link(t,bB,0,ba,0); link(t,be,0,ba,1)
-mix=node(t,'ShaderNodeMixShader','主体 Alpha 叠加背景',1340,400); link(t,sT,'Alpha',mix,0); link(t,ba,0,mix,1); link(t,ls,0,mix,2); link(t,mix,0,out,'Surface')
+mix=node(t,'ShaderNodeMixShader','主体 Alpha 叠加背景',1340,400); link(t,sT,'Alpha',mix,0); link(t,ba,0,mix,1); link(t,ls,0,mix,2)
+# Effects layer (sparks/thorns deco): above the character, below the text plane,
+# on its own mid-depth parallax so it floats between subject (0.28) and text (0).
+pE=None
+if has_fx:
+    pE=parallax(t,'特效 · 1 / 0.14',1,.14,-1200,-900)
+    eT=tex(t,'effects','特效荆棘 PNG · 换卡替换这里',pE,-950,-880)
+    fE=foil(t,pE,-930,-1080)
+    eov=node(t,'ShaderNodeMixRGB','特效轻镭射',-560,-860); eov.blend_type='OVERLAY'; eov.inputs[0].default_value=.12; link(t,eT,'Color',eov,1); link(t,fE,'全息颜色',eov,2)
+    eB=bsdf(t,'特效原理化 · 金属1 / 糙度1',-270,-860); link(t,eov,0,eB,'Base Color')
+    emix=node(t,'ShaderNodeMixShader','特效 Alpha 叠加',1560,400); link(t,eT,'Alpha',emix,0); link(t,mix,0,emix,1); link(t,eB,0,emix,2); link(t,emix,0,out,'Surface')
+else:
+    link(t,mix,0,out,'Surface')
 # Text plane at zero parallax.
 textmat,tt=material('02 · 文字透明 / 深度0')
 tp=parallax(tt,'文字 · 1 / 0',1,0,-650,250); tx=tex(tt,'text','文字 PNG · 换卡替换这里',tp,-420,250); tb=bsdf(tt,'文字原理化',-130,300); link(tt,tx,'Color',tb,'Base Color')
@@ -153,8 +167,11 @@ def move_col(o,c):
     c.objects.link(o)
 pivot=bpy.data.objects.new('转卡控制 · 播放时间线预览',None); cardcol.objects.link(pivot)
 pivot['主体缩放']=CFG.get('parameters',{}).get('subjectScale',1.25); pivot['主体深度']=CFG.get('parameters',{}).get('subjectDepth',.4); pivot['背景深度']=CFG.get('parameters',{}).get('backgroundDepth',-.25)
-pivot['使用说明']='材质的三个参数已通过驱动关联到此物体自定义属性。播放 1–96 帧查看闪卡。'
-for n,inp,prop in [(pS,'缩放','主体缩放'),(pS,'深度','主体深度'),(pB,'深度','背景深度')]:
+pivot['特效缩放']=CFG.get('parameters',{}).get('effectsScale',1); pivot['特效深度']=CFG.get('parameters',{}).get('effectsDepth',.14)
+pivot['使用说明']='材质的参数已通过驱动关联到此物体自定义属性。播放 1–96 帧查看闪卡。'
+driver_pairs=[(pS,'缩放','主体缩放'),(pS,'深度','主体深度'),(pB,'深度','背景深度')]
+if has_fx: driver_pairs += [(pE,'缩放','特效缩放'),(pE,'深度','特效深度')]
+for n,inp,prop in driver_pairs:
     fc=n.inputs[inp].driver_add('default_value'); dr=fc.driver; dr.type='SCRIPTED'; v=dr.variables.new(); v.name='value'; v.targets[0].id=pivot; v.targets[0].data_path='["'+prop+'"]'; dr.expression='value'
 
 def perimeter(w,h,r,n=12):
@@ -185,6 +202,79 @@ def plane(name,w,h,mat,y=0,thickness=0,coll=cardcol):
     return o
 card=plane('主体平面 · 完整视差合成',6.3,9.45,main,0,.045)
 textob=plane('文字平面 · Alpha PNG',6.3,9.45,textmat,-.014)
+# Relief mode: subject / effects / text become separate physical planes (lightbox
+# diorama). The front face keeps only background + foil laminate; the subject mix
+# is disconnected so the character does not double-draw.
+RELIEF=CFG.get('sourceMode')=='relief'
+layers_cfg=CFG.get('layers',{}) if RELIEF else {}
+relief_objs=[]
+if RELIEF:
+    if mix.inputs[0].links: t.links.remove(mix.inputs[0].links[0])
+    def relief_y(d): return -(0.541+1.818*d)
+    textob.location.y=relief_y(layers_cfg.get('text',{}).get('depth',.72))
+    def apply_crop_uv(o,w,h,crop_uv):
+        me=o.data; layer=me.uv_layers.active or me.uv_layers[0]
+        u0,v0,u1,v1=crop_uv
+        for pol in me.polygons:
+            for li in pol.loop_indices:
+                x,z=me.vertices[me.loops[li].vertex_index].co[:2]
+                u,v=(x/w+.5),(z/h+.5)
+                layer.data[li].uv=(u0+u*(u1-u0),v0+v*(v1-v0))
+    def norm_crop(key,crop):
+        if not crop: return None
+        iw,ih=images[key].size; x0,y0,x1,y1=crop
+        # crop is given top-left-origin pixels; Blender V=1 is the image top
+        return (x0/iw, 1-y1/ih, x1/iw, 1-y0/ih)
+    def relief_plane(name,w,h,mat,y,offset=(0,0),crop_uv=None):
+        rr=min(.2,min(w,h)*.15)
+        pts=perimeter(w,h,rr); N=len(pts)
+        verts=[(x,z+offset[1],0) for x,z in pts]; faces=[tuple(range(N))]
+        me=bpy.data.meshes.new(name+'网格'); me.from_pydata(verts,[],faces); me.update(); o=bpy.data.objects.new(name,me); cardcol.objects.link(o)
+        o.rotation_euler=(math.pi/2,0,0); o.location=(offset[0],y,0); o.parent=pivot
+        me.materials.append(mat)
+        layer=me.uv_layers.new(name='UVMap')
+        for pol in me.polygons:
+            for i,li in enumerate(pol.loop_indices):
+                x,z=pts[i]; u,v=(x/w+.5),(z/h+.5)
+                if crop_uv is not None:
+                    u0,v0,u1,v1=crop_uv
+                    u=u0+u*(u1-u0); v=v0+v*(v1-v0)
+                layer.data[li].uv=(u,v)
+        o['导入约定']='浮雕独立层：几何内嵌偏移与裁切 UV，物体 X=90°，未应用旋转。'
+        return o
+    def relief_mat(name,key):
+        m,rt=material(name)
+        tn=node(rt,'ShaderNodeTexImage',name+' texture',-400,100); tn.image=images[key]; tn.extension='CLIP'
+        bs=bsdf(rt,'Printed relief',-100,100); link(rt,tn,'Color',bs,'Base Color')
+        tr=node(rt,'ShaderNodeBsdfTransparent','Clear cutout',-100,-200)
+        mx=node(rt,'ShaderNodeMixShader','Cutout alpha',200,100); link(rt,tr,0,mx,1); link(rt,bs,0,mx,2)
+        if images[key].channels==4:
+            link(rt,tn,'Alpha',mx,0)
+        else:
+            lum=node(rt,'ShaderNodeRGBToBW','Effect luminance',-400,-150)
+            ramp=node(rt,'ShaderNodeValToRGB','Black-background effect matte',-120,-150)
+            ramp.color_ramp.elements[0].position=.0; ramp.color_ramp.elements[0].color=(0,0,0,1)
+            ramp.color_ramp.elements[1].position=.08; ramp.color_ramp.elements[1].color=(1,1,1,1)
+            link(rt,tn,'Color',lum,0); link(rt,lum,0,ramp,0); link(rt,ramp,0,mx,0)
+        o=node(rt,'ShaderNodeOutputMaterial','Relief surface',450,100); link(rt,mx,0,o,'Surface')
+        return m
+    sub=layers_cfg.get('subject',{})
+    subob=relief_plane('Relief subject',sub.get('width',6.9),sub.get('height',10.98),relief_mat('Relief / subject','subject'),relief_y(sub.get('depth',.28)),tuple(sub.get('offset',[0,-0.1])),norm_crop('subject',sub.get('crop')))
+    relief_objs.append(subob)
+    if has_fx:
+        ef=layers_cfg.get('effects',{})
+        fxob=relief_plane('Relief effects',ef.get('width',7.2),ef.get('height',10.8),relief_mat('Relief / effects','effects'),relief_y(ef.get('depth',.5)),tuple(ef.get('offset',[0,-0.3])),norm_crop('effects',ef.get('crop')))
+        relief_objs.append(fxob)
+    # Text: the full-card text plane can be UV-cropped (e.g. keep only the bottom
+    # line), and an enlarged title plane can be added as its own floating layer.
+    tcfg=layers_cfg.get('text',{})
+    tfull_crop=norm_crop('text',tcfg.get('crop'))
+    if tfull_crop is not None: apply_crop_uv(textob,6.3,9.45,tfull_crop)
+    ttitle=layers_cfg.get('textTitle')
+    if ttitle:
+        tw=ttitle.get('width',6.3); th=ttitle.get('height',.85)
+        tobj=relief_plane('文字平面 · 标题',tw,th,textmat,relief_y(tcfg.get('depth',.72)),tuple(ttitle.get('offset',[0,0])),norm_crop('text',ttitle.get('crop')))
+        relief_objs.append(tobj)
 # The physical background import is hidden because its BSDF is already mixed into the front face.
 bgmat,bgt=material('06 · 独立背景参考'); bpg=parallax(bgt,'背景复用 · −0.2',1,-.2,-500,100); btex=tex(bgt,'background','背景 PNG',bpg,-280,100); bbs=bsdf(bgt,'背景原理化',0,100); link(bgt,btex,0,bbs,'Base Color'); bout=node(bgt,'ShaderNodeOutputMaterial','表面',350,100); link(bgt,bbs,0,bout,0)
 bgo=plane('背景平面 · 已在主体材质合成',6.3,9.45,bgmat,.025,coll=refcol); bgo.hide_render=True; bgo.hide_set(True)
@@ -229,7 +319,7 @@ for screen in bpy.data.screens:
             area.spaces.active.overlay.show_overlays=False
 for im in images.values(): im.pack()
 scene['制作说明']='日式浮世绘 · 角色 · 雷之呼吸 壹之型 霹雳一闪。按空格播放转动。渲染有高质量辉光。'
-scene['素材来源']='内置 image_gen 生成角色/背景/线描；文字透明 PNG 使用精确字体排版。'
+scene['素材来源']='角色/背景/线描/文字为用户提供的成品分层图；特效层（effects.png，可选）位于人物之上、文字之下。'
 scene.render.filepath=str(R/'renders'/'hero.png')
 
 # Fixed typography safe region, distinct from parallax controls.
@@ -245,7 +335,7 @@ f.links.new(mp2.outputs[0],pattern.inputs['Vector']); f.links.new(pattern.output
 scene['制作说明']=CFG.get('title','Card')+' · '+CFG.get('technique','')
 
 bpy.ops.wm.save_as_mainfile(filepath=str(R/'card.blend'))
-report={'blender':bpy.app.version_string,'language':bpy.context.preferences.view.language,'interface_translation':bpy.context.preferences.view.use_translate_interface,'config':bpy.utils.user_resource('CONFIG'),'render_engine':scene.render.engine,'device':scene.cycles.device,'images':{k:{'size':list(v.size),'channels':v.channels,'packed':bool(v.packed_file)} for k,v in images.items()},'planes':{o.name:{'rotation_degrees':[round(math.degrees(a),2) for a in o.rotation_euler],'mode':o.mode} for o in [card,textob,bgo]},'parameters':{k:pivot[k] for k in ['主体缩放','主体深度','背景深度']},'frames':[1,25,49,73,96]}
+report={'blender':bpy.app.version_string,'language':bpy.context.preferences.view.language,'interface_translation':bpy.context.preferences.view.use_translate_interface,'config':bpy.utils.user_resource('CONFIG'),'render_engine':scene.render.engine,'device':scene.cycles.device,'images':{k:{'size':list(v.size),'channels':v.channels,'packed':bool(v.packed_file)} for k,v in images.items()},'planes':{o.name:{'rotation_degrees':[round(math.degrees(a),2) for a in o.rotation_euler],'mode':o.mode} for o in [card,textob,bgo]+relief_objs},'parameters':{k:pivot[k] for k in ['主体缩放','主体深度','背景深度']+ (['特效缩放','特效深度'] if has_fx else [])},'effects_layer':bool(has_fx),'source_mode':CFG.get('sourceMode','composite'),'relief_layers':{k:{'width':v.get('width'),'height':v.get('height'),'offset':v.get('offset'),'depth':v.get('depth'),'crop':v.get('crop')} for k,v in layers_cfg.items()},'frames':[1,25,49,73,96]}
 (R/'verification.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf8')
 if '--skip-render' not in args: bpy.ops.render.render(write_still=True)
 print('BUILD_AND_HERO_RENDER_COMPLETE')

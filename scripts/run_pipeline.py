@@ -19,9 +19,12 @@ def main():
     subprocess.run([str(blender),'--background','--python',str(scripts/'export_web.py'),'--',str(root)],check=True)
     if not (root/'web'/'assets'/'card.glb').exists():raise RuntimeError('GLB export failed')
     web=root/'web';shutil.copytree(skill/'assets'/'web-template',web,dirs_exist_ok=True)
-    cfg=json.loads(config.read_text(encoding='utf-8-sig'));cfg['assets']={name:'./assets/'+name+'.png' for name in ['subject','background','text','lineart']};cfg['assets']['model']='./assets/card.glb'
+    cfg=json.loads(config.read_text(encoding='utf-8-sig'))
+    layers=['subject','background','text','lineart']
+    if (root/'assets'/'effects.png').exists():layers.append('effects')
+    cfg['assets']={name:'./assets/'+name+'.png' for name in layers};cfg['assets']['model']='./assets/card.glb'
     (web/'card-config.json').write_text(json.dumps(cfg,ensure_ascii=False,indent=2),encoding='utf8')
-    for name in ['subject.png','background.png','text.png','lineart.png']:shutil.copy2(root/'assets'/name,web/'assets'/name)
+    for name in layers:shutil.copy2(root/'assets'/(name+'.png'),web/'assets'/(name+'.png'))
     if not a.skip_npm:
         npm=shutil.which('npm.cmd') or shutil.which('npm')
         if not npm:raise RuntimeError('Install Node.js/npm, then run npm install --ignore-scripts in web/')
