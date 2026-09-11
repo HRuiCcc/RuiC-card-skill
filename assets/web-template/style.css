@@ -796,9 +796,18 @@ dialog dd {
     min-width: 51px;
     height: 30px;
   }
-  .finish-control {
+  /* The depth switch turned .finish-cluster into the grid item, so the cluster — not
+     .finish-control — has to own the second row on a phone. Without this the auto
+     column claimed ~316px, squeezed the 1fr title column past the bar and wrapped
+     景深调整 one glyph per line (~114px of horizontal overflow at 390px). */
+  .finish-cluster {
     grid-column: 1/-1;
     width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .finish-control {
+    flex: 1 1 100%;
     grid-template-columns: 1fr 1fr;
     gap: 30px;
   }
