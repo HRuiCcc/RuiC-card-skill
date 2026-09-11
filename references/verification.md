@@ -20,6 +20,7 @@ A `ready` flag, a saved file or a matching grep is never evidence that the card 
 
 ## The running page
 
+- `node scripts/verify_web.mjs <project>` automates the list below: it launches its own headless Chromium and its own viewer server, runs a desktop pass and a 390 px pass, compares real captured frames, and writes `verification/report.json` with screenshots next to it. Run it first, then read the failures it names instead of re-checking by hand. It still does not judge beauty — look at the saved frames and at the live page yourself.
 - Serve it, open it in a real browser with WebGL, and wait for textures and the model before judging the picture. Fail on shader compilation errors, missing model or asset requests, and a fallback to the CSS-3D card when the shader engine is what you meant to test.
 - Test the interactions and every control: pointer drag, wheel zoom, flip to the back and back to the front, reset, auto motion, the finish options, the screenshot download, the keyboard arrows, and each depth slider — 画面比例, 画面景深, **特效景深**, 底纹景深 — plus 镭射. Confirm each slider actually changes the render, not just its own readout.
 - Check both tilt directions for every depth: a signed depth that works one way and smears or inverts the other way usually means the wrong reference frame. In particular, computing `uView` from the exported front mesh instead of the canonical card root frame turns local Y into the normal and smears the UVs.
