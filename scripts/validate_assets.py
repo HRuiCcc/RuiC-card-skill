@@ -10,7 +10,11 @@ import argparse,json
 
 def validate(project):
     root=Path(project);report={};size=None
-    for name in ['subject','background','lineart','text']:
+    # The effects layer is optional, but when present it is held to the same bar as
+    # the other RGBA layers: same canvas, real alpha, nothing empty.
+    names=['subject','background','lineart','text']
+    if (root/'assets'/'effects.png').exists():names.insert(1,'effects')
+    for name in names:
         file=root/'assets'/(name+'.png')
         im=Image.open(file)
         if im.format!='PNG':raise ValueError(str(file)+' is not a PNG')
@@ -18,7 +22,7 @@ def validate(project):
         if im.size!=size:raise ValueError('Layer dimensions differ: '+name)
         if min(im.size)<256:raise ValueError('Artwork is too small')
         item={'size':im.size,'mode':im.mode}
-        if name in ['subject','text']:
+        if name in ['subject','text','effects']:
             if 'A' not in im.getbands():
                 # Some image tools paint a checkerboard into RGB instead of
                 # returning alpha. Convert it deterministically when present.

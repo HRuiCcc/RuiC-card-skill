@@ -11,12 +11,15 @@
     "subject": "./assets/subject.png",
     "background": "./assets/background.png",
     "text": "./assets/text.png",
-    "lineart": "./assets/lineart.png"
+    "lineart": "./assets/lineart.png",
+    "effects": "./assets/effects.png"
   },
   "parameters": {
     "subjectScale": 1.25,
-    "subjectDepth": 0.28,
-    "backgroundDepth": -0.2,
+    "subjectDepth": 0.4,
+    "backgroundDepth": -0.25,
+    "effectsScale": 1,
+    "effectsDepth": 0.5,
     "foil": 0.65
   },
   "safeArea": {

@@ -32,6 +32,7 @@ const settings = [
   ["foil", "uFoil"],
   ["scale", "uScale"],
   ["depth", "uDepth"],
+  ["fx-depth", "uFxDepth"],
   ["bg-depth", "uBgDepth"],
 ];
 const vertex = `
@@ -236,9 +237,14 @@ function renderIconNode(node) {
 }
 function refreshIcons() {
   const overrides = { "stroke-width": 1.5 };
+  // icons.data.js is keyed in PascalCase (Play, RotateCcw, SlidersHorizontal …) while
+  // the markup uses lucide's hyphenated names (play, rotate-ccw, sliders-horizontal).
+  // Looking the raw attribute up never matched, so no icon ever rendered.
+  const pascal = (name) =>
+    name.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
   document.querySelectorAll("[data-lucide]").forEach((el) => {
     const name = el.getAttribute("data-lucide");
-    const tree = icons[name];
+    const tree = icons[name] || icons[pascal(name)];
     if (!tree) return;
     const [tag, defaults = {}, children = []] = tree;
     const svg = renderIconNode([tag, { ...defaults, ...overrides }, children]);
@@ -410,7 +416,7 @@ async function init() {
   const settingsHome=$('parameter-panel').parentElement;
   const responsiveSettings=()=>{
     const panel=$('parameter-panel');
-    if(matchMedia('(max-width:760px)').matches)document.querySelector('main').append(panel);
+    if(matchMedia('(max-width:960px)').matches)document.querySelector('main').append(panel);
     else settingsHome.append(panel);
   };
   responsiveSettings();window.addEventListener('resize',responsiveSettings);
@@ -543,6 +549,7 @@ function fallback3D(error) {
   const setAutoUI = (value) => {
     sway = value;
     const b = $("auto");
+    if (!b) return;
     b.setAttribute("aria-pressed", String(value));
     b.setAttribute("aria-label", value ? "暂停旋转" : "自动旋转");
     b.title = value ? "暂停旋转" : "自动旋转";
@@ -563,30 +570,16 @@ function fallback3D(error) {
   };
   $("info").disabled = false;
   $("info").onclick = () => $("about").showModal();
-  $("flip").disabled = false;
-  $("flip").onclick = () => setFlip(!flipped);
   $("front").disabled = false;
   $("front").onclick = () => setFlip(false);
   $("back").disabled = false;
   $("back").onclick = () => setFlip(true);
-  $("auto").disabled = false;
-  $("auto").onclick = () => setAutoUI(!sway);
-  $("reset").disabled = false;
-  $("reset").onclick = () => {
-    tx = -0.03; ty = -0.06; lastMove = 0;
-    setFlip(false);
-    scale = 1; depthScale = 1; bgScale = 1;
-    $("scale").value = 1; $("scale-value").textContent = "1.00";
-    $("depth").value = 0; $("depth-value").textContent = "0.00";
-    $("bg-depth").value = 0; $("bg-depth-value").textContent = "0.00";
-    applyLayers();
-  };
-  $("settings").disabled = false;
-  $("settings").onclick = () => {
-    const panel = $("parameter-panel");
-    panel.hidden = !panel.hidden;
-    $("settings").setAttribute("aria-expanded", String(!panel.hidden));
-  };
+  const depthToggleFallback = $("depth-toggle");
+  if (depthToggleFallback) depthToggleFallback.onclick = () => toggleSettings();
+  // The hide/show control cluster that used to sit under the card is gone: it rendered
+  // as four unlabelled, icon-less circles there. Flipping stays available through the
+  // 正面/背面 buttons and dragging already stops the idle sway, so only the panel's
+  // permanent visibility matters here.
   const bindRange = (id, output, fn, decimals = 2) => {
     $(id).disabled = false;
     $(id).addEventListener("input", () => {
@@ -639,13 +632,15 @@ function resize() {
 }
 function setAuto(value) {
   auto = value;
-  $("auto").setAttribute("aria-pressed", String(auto));
-  $("auto").setAttribute("aria-label", auto ? "暂停旋转" : "自动旋转");
-  $("auto").title = auto ? "暂停旋转" : "自动旋转";
-  $("auto").replaceChildren();
+  const button = $("auto");
+  if (!button) return;
+  button.setAttribute("aria-pressed", String(auto));
+  button.setAttribute("aria-label", auto ? "暂停旋转" : "自动旋转");
+  button.title = auto ? "暂停旋转" : "自动旋转";
+  button.replaceChildren();
   const icon = document.createElement("i");
   icon.setAttribute("data-lucide", auto ? "pause" : "play");
-  $("auto").append(icon);
+  button.append(icon);
   refreshIcons();
 }
 function setFinish(value) {
@@ -714,6 +709,7 @@ function reset() {
     foil: p.foil ?? 0.52,
     scale: p.subjectScale ?? 1,
     depth: p.subjectDepth ?? 0.32,
+    "fx-depth": p.effectsDepth ?? 0.14,
     "bg-depth": p.backgroundDepth ?? -0.18,
   };
   settings.forEach(([id, name]) => {
@@ -723,9 +719,14 @@ function reset() {
   setFinish(config.appearance?.finish || "pearl");
   resize();
 }
-function toggleSettings(open = !$("parameter-panel").hidden) {
-  $("parameter-panel").hidden = open;
-  $("settings").setAttribute("aria-expanded", String(!open));
+function toggleSettings(show = $("parameter-panel").hidden) {
+  // The depth panel is shown by default and switched from the 景深调整 button next to
+  // the finish control; no outside-click or Escape dismissal, so it only moves when
+  // the button is pressed.
+  const panel = $("parameter-panel");
+  panel.hidden = !show;
+  const button = $("depth-toggle");
+  if (button) button.setAttribute("aria-expanded", String(show));
 }
 function setupControls() {
   if (config.sourceMode === "relief") {
@@ -815,40 +816,16 @@ function setupControls() {
     targetY = THREE.MathUtils.clamp(targetY, base - 0.65, base + 0.65);
     targetX = THREE.MathUtils.clamp(targetX, -0.36, 0.36);
   });
-  $("auto").onclick = () => {
-    if (flipped) flip(false);
-    setAuto(!auto);
-  };
-  $("flip").onclick = () => flip();
   $("front").onclick = () => flip(false);
   $("back").onclick = () => flip(true);
-  $("reset").onclick = reset;
+  const depthToggle = $("depth-toggle");
+  if (depthToggle) depthToggle.onclick = () => toggleSettings();
   document
     .querySelectorAll("[data-finish]")
     .forEach((b) => (b.onclick = () => setFinish(b.dataset.finish)));
-  $("settings").onclick = () => toggleSettings();
-  $("close-settings").onclick = () => {
-    toggleSettings(true);
-    $("settings").focus();
-  };
-  document.addEventListener("pointerdown", (e) => {
-    if (
-      !$("parameter-panel").hidden &&
-      !$("parameter-panel").contains(e.target) &&
-      !$("settings").contains(e.target)
-    )
-      toggleSettings(true);
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("parameter-panel").hidden) {
-      toggleSettings(true);
-      $("settings").focus();
-    }
-  });
-  $("info").onclick = () => {
-    toggleSettings(true);
-    $("about").showModal();
-  };
+  // The depth panel is permanent: no toggle button, and no dismissal on an outside
+  // click or Escape any more — the controls are meant to stay in view.
+  $("info").onclick = () => $("about").showModal();
   $("close-about").onclick = () => $("about").close();
   $("about").onclick = (e) => {
     if (e.target === $("about")) {

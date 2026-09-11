@@ -1,12 +1,33 @@
 # Finish by observing the result
 
-- Validate real alpha (subject and text), equal canvas dimensions, nonempty artwork, and line-art contrast. Visually inspect exact names, anatomy, clipping, registration and text overlap.
-- Inspect Blender: X=90 degrees remains an object transform on all three planes; packed assets and relative paths; correct parameters; edge material assignment; connected compositor glow. Render front and both tilt directions. Check normal and UV conventions before tuning foil when bands point in the wrong direction.
-- Confirm the actual requested-language GUI if opening it was requested. A saved preference or an executable process alone does not prove the visible interface opened.
-- Parse the exported GLB and confirm it contains meshes and the browser material-role names. The export is geometry plus simple role materials, not a raster render of the completed card.
-- Run the site in an actual browser with WebGL. Fail on shader compilation errors or missing model/asset requests. Wait for textures and model before taking a screenshot. Test pointer drag, touch-sized layout, flip/back design, reset, auto motion, each parameter, screenshot download and keyboard controls. Check layout around 390px and desktop widths. Avoid desktop-width overflow and confirm the reduced-motion setting is respected.
-- Browser image comparisons must demonstrate observable rotation and a change after foil adjustment; a boolean ready flag or source grep is insufficient. Test both signed-depth directions. In particular, using the exported front mesh frame rather than the canonical card root can turn local Y into the normal and smear UVs.
-- glTF cannot preserve this custom Blender node graph. Explain that web materials reproduce the effect with GLSL; minor render differences are expected. Never advertise pixel-identical offline and real-time renders without proving them.
-- For text-only distribution, run package_skill.py, inspect every archive member, scan for embedded image data and require UTF-8 text. Exclude assets generated for any individual card, including image-bearing .blend/.glb/.gltf and videos. A PNG encoded in JavaScript is still image content and must not be included.
+A `ready` flag, a saved file or a matching grep is never evidence that the card looks right. Open the thing, look at it, and compare what you see with what was asked for.
 
-The template exposes window.__holo.ready, root, uniforms and renderer for local testing. It does not grant access to any external service.
+## Assets and configuration
+
+- `asset-validation.json` was produced by `scripts/validate_assets.py` and reports every layer: equal canvases, minimum size, real transparency where required (subject, text, and the optional effects overlay), dark contours on white for the line art, and no empty layers. Read it; do not just check that it exists.
+- Inspect the layers yourself too: exact names, spelled titles, edition numbering, clipping, registration between subject and line art, and text overlap. Non-Latin glyphs must be glyphs.
+
+## Blender
+
+- The scene keeps X=90° as an **object transform** on the image planes, uses relative paths with packed assets, carries the requested parameters, assigns the edge material to its own slot, and has the compositor glow connected.
+- Look at the renders: the front view, and both tilt directions. A tilt render is where inverted parallax, smeared UVs and layers crossing each other show up.
+- If a visible Blender window was requested, confirm the window really shows the requested interface language. A saved preference or a live process does not prove a window opened.
+
+## Exported geometry
+
+- Parse `web/assets/card.glb` and confirm it carries meshes and the browser material-role names: `web_front`, `web_edge`, `web_back`, `web_gold` (relief mode adds `web_subject`, `web_effects`, `web_text`). The export is geometry plus role materials, not a render of the finished card.
+- Confirm `web/card-config.json` was rewritten with the resolved asset paths and the layer depths the page should start from.
+
+## The running page
+
+- Serve it, open it in a real browser with WebGL, and wait for textures and the model before judging the picture. Fail on shader compilation errors, missing model or asset requests, and a fallback to the CSS-3D card when the shader engine is what you meant to test.
+- Test the interactions and every control: pointer drag, wheel zoom, flip to the back and back to the front, reset, auto motion, the finish options, the screenshot download, the keyboard arrows, and each depth slider — 画面比例, 画面景深, **特效景深**, 底纹景深 — plus 镭射. Confirm each slider actually changes the render, not just its own readout.
+- Check both tilt directions for every depth: a signed depth that works one way and smears or inverts the other way usually means the wrong reference frame. In particular, computing `uView` from the exported front mesh instead of the canonical card root frame turns local Y into the normal and smears the UVs.
+- Check layout around 390 px and at desktop width, and confirm the reduced-motion setting is respected.
+- `window.__holo` (`ready`, `config`, `renderer`, `root`, `uniforms`, `reset`, `flip`, `getState`) exists for scripted checks: drive a view, grab two frames and compare them. Image comparisons have to show observable rotation and a visible change after a depth or foil adjustment.
+
+## Delivery and wording
+
+- glTF cannot carry the custom Blender node graph: the page reproduces the effect in GLSL. Say that plainly, and never advertise pixel-identical offline and real-time output without proving it.
+- For text-only distribution run `scripts/package_skill.py`, then inspect every archive member and confirm no image data travelled — no artwork generated for any card, no image-bearing `.blend`/`.glb`/`.gltf`, no video. A PNG base64-encoded inside JavaScript is still image content.
+- Report what was actually verified, and name what could not be, instead of implying it was.

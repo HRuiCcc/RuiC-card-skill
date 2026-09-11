@@ -32,10 +32,29 @@ def main():
     # Bundle the viewer into ONE file (three + icons baked in). Per-module URLs
     # like node_modules/.../fingerprint.js get blocked by ad blockers, which
     # killed the page (stuck at "正在装裱作品"). A single file is unblockable.
-    bun=shutil.which('bun') or Path.home()/'.bun'/'bin'/'bun'
-    if bun and (web/'app.js').exists():
-        subprocess.run([str(bun),'build','./app.js','--outfile=./app.bundle.js','--target=browser'],cwd=web,check=False)
-    else:
-        print('bun not found; using prebuilt app.bundle.js from the template')
+    # The page loads app.bundle.js, so an edit to app.js only ships after a rebuild:
+    # try bun, then esbuild. A missing bundler is never fatal — the template already
+    # ships a built bundle. (Note: `which('bun') or Path(...)` is always truthy, so
+    # the home-directory candidate has to be existence-checked, not just defaulted.)
+    if (web/'app.js').exists():
+        bun=shutil.which('bun')
+        if not bun:
+            local=Path.home()/'.bun'/'bin'/('bun.exe' if sys.platform=='win32' else 'bun')
+            bun=str(local) if local.exists() else None
+        npx=shutil.which('npx.cmd') or shutil.which('npx')
+        if bun:
+            cmd=[bun,'build','./app.js','--outfile=./app.bundle.js','--target=browser']
+        elif npx:
+            cmd=[npx,'--yes','esbuild@0.25.0','app.js','--bundle','--format=esm','--target=es2020','--outfile=app.bundle.js']
+        else:
+            cmd=None
+        if cmd is None:
+            print('bun/esbuild not found; using prebuilt app.bundle.js from the template')
+        else:
+            try:
+                if subprocess.run(cmd,cwd=web,check=False).returncode!=0:
+                    print('bundle rebuild failed; keeping the prebuilt app.bundle.js from the template')
+            except OSError as error:
+                print('bundle rebuild skipped ('+str(error)+'); keeping the prebuilt app.bundle.js')
     print('Completed:',root/'card.blend');print('Preview: node',web/'server.mjs');print('Open http://127.0.0.1:4173 after starting the server')
 if __name__=='__main__':main()

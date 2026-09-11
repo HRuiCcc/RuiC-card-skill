@@ -376,15 +376,31 @@ button svg {
   padding: 6px;
 }
 .parameter-panel {
-  position: absolute;
+  /* Anchored to the viewport so the depth controls sit in the free space at the far
+     right, clear of the card. (Inside .tools an absolute box can only be placed
+     relative to the centred toolbar, which put it on top of the artwork.) The bottom
+     offset keeps it clear of the artwork bar's finish swatches and foil slider. */
+  position: fixed;
   z-index: 5;
-  bottom: 61px;
-  left: calc(50% + 68px);
+  right: 28px;
+  bottom: 176px;
   width: 266px;
   padding: 20px 22px 24px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 12px 45px #20261b1a;
+}
+/* Beside the card the floating panel needs roughly 300px of clear margin; narrower
+   than that it stacks under the stage instead of covering the artwork. */
+@media (min-width: 761px) and (max-width: 960px) {
+  .parameter-panel {
+    position: static;
+    transform: none;
+    width: calc(100% - 48px);
+    margin: 28px auto 0;
+    box-shadow: none;
+    background: #f1f2ee;
+  }
 }
 .panel-heading {
   display: flex;
@@ -470,6 +486,41 @@ button svg {
 .face-picker button[aria-pressed="true"] {
   background: white;
   color: var(--ink);
+  box-shadow: 0 2px 5px #21251c08;
+}
+/* Right column of the artwork bar: the depth-panel switch sits directly beside the
+   finish control, so both read as one cluster. */
+.finish-cluster {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-self: end;
+}
+.depth-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.depth-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+.depth-toggle:hover {
+  color: var(--ink);
+}
+.depth-toggle[aria-expanded="true"] {
+  background: white;
+  color: var(--ink);
+  border-color: #d8dbd5;
   box-shadow: 0 2px 5px #21251c08;
 }
 .finish-control {

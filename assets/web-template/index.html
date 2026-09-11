@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#fafafa" />
+    <link rel="icon" href="data:," />
     <title>白相 · White Atelier</title>
     <link rel="stylesheet" href="./style.css" />
     <script type="module" src="./app.bundle.js"></script>
@@ -54,59 +55,9 @@
         <div class="stage-note" aria-hidden="true">
           <span>ART STUDY</span><span id="view-label">01 / FRONT</span>
         </div>
-        <div class="tools" aria-label="卡片操作">
-          <button
-            class="icon-button"
-            id="auto"
-            aria-label="自动旋转"
-            title="自动旋转"
-            aria-pressed="false"
-            disabled
-          >
-            <i data-lucide="play"></i>
-          </button>
-          <button
-            class="icon-button"
-            id="flip"
-            aria-label="翻转卡片"
-            title="翻转卡片"
-            disabled
-          >
-            <i data-lucide="rotate-3d"></i>
-          </button>
-          <span class="tool-divider"></span>
-          <button
-            class="icon-button"
-            id="reset"
-            aria-label="重置视角和材质"
-            title="重置视角和材质"
-            disabled
-          >
-            <i data-lucide="rotate-ccw"></i>
-          </button>
-          <button
-            class="icon-button"
-            id="settings"
-            aria-label="调整景深"
-            title="调整景深"
-            aria-controls="parameter-panel"
-            aria-expanded="false"
-            disabled
-          >
-            <i data-lucide="sliders-horizontal"></i>
-          </button>
-        </div>
-        <div class="parameter-panel" id="parameter-panel" hidden>
+        <div class="parameter-panel" id="parameter-panel">
           <div class="panel-heading">
-            <span>景深与构图</span
-            ><button
-              id="close-settings"
-              class="icon-button small"
-              aria-label="关闭调整"
-              title="关闭调整"
-            >
-              <i data-lucide="x"></i>
-            </button>
+            <span>景深与构图</span>
           </div>
           <label class="range-row" for="scale"
             ><span>画面比例</span><output id="scale-value"></output
@@ -115,6 +66,10 @@
           <label class="range-row" for="depth"
             ><span>画面景深</span><output id="depth-value"></output
             ><input id="depth" type="range" min="-0.45" max="0.45" step="0.01"
+          /></label>
+          <label class="range-row" for="fx-depth"
+            ><span>特效景深</span><output id="fx-depth-value"></output
+            ><input id="fx-depth" type="range" min="-0.3" max="0.9" step="0.01"
           /></label>
           <label class="range-row" for="bg-depth"
             ><span>底纹景深</span><output id="bg-depth-value"></output
@@ -134,7 +89,19 @@
           <button id="front" aria-pressed="true" disabled>正面</button
           ><button id="back" aria-pressed="false" disabled>背面</button>
         </div>
-        <div class="finish-control">
+        <div class="finish-cluster">
+          <button
+            id="depth-toggle"
+            class="depth-toggle"
+            type="button"
+            aria-controls="parameter-panel"
+            aria-expanded="true"
+            aria-label="显示或隐藏景深调整"
+            title="显示或隐藏景深调整"
+          >
+            <i data-lucide="sliders-horizontal"></i><span>景深调整</span>
+          </button>
+          <div class="finish-control">
           <div class="finish-heading">
             <span>卡面质感</span>
             <div class="swatches" role="group" aria-label="卡面材质">
@@ -185,6 +152,7 @@
               disabled
             /><output id="foil-value">52%</output></label
           >
+          </div>
         </div>
       </section>
     </main>
