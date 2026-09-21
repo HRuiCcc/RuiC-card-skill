@@ -96,7 +96,7 @@ skill 本体就是 `SKILL.md` + Markdown + 纯 Python/Node 脚本，**不绑定�
 ## 🎬 可以拿它做什么
 
 - **猫主子的传说卡**：上传照片加一句"传说稀有度、金边框"，拖一拖，猫往前凸、背景往后退
-- **独立游戏卡组**：一个角色一句描述，战士、法师、盗贼、Boss 批量出货，每张卡一个配置
+- **独立游戏卡组**：一个角色一句描述，战士、法师、盗贼、Boss 批量出货，每张卡一个配置。攒够一批之后，`list_cards.py` 把整个目录铺成一页卡库，翻起来像真的卡册（见[卡库索引](#-卡库索引)）
 - **团队纪念卡**：头像当主体、部门色当背景、Slogan 当文字层，网页链接一发大家翻一下午
 - **节日仪式感**：背面写一句话，对方翻到背面的那一刻，闪光效果拉满
 - **发布会彩蛋**：产品卡一个链接"扫码看会闪的那种"，观众当场转起来
@@ -132,6 +132,32 @@ flowchart LR
 
 ---
 
+## 🗂️ 卡库索引
+
+一张卡一个目录，攒多了就散。`list_cards.py` 扫一层目录，把每张卡铺成一页静态卡库：
+
+```bash
+# 卡片按 <卡库根>/<卡名>/{card-config.json, assets/, renders/, web/} 摆好，然后
+python3 scripts/list_cards.py --root ~/my-cards --title "我的卡库"
+```
+
+生成 `~/my-cards/index.html`：网格排布，缩略图优先用 `renders/hero.png`（没有就退回 `assets/subject.png`，再退回背景图，都没有就画一个纯 CSS 占位），点进去直达那张卡的查看器。
+
+**要用卡库根目录起服务**，因为每张卡自带的 `server.mjs` 只服务它自己那一张：
+
+```bash
+python3 -m http.server 4173 --directory ~/my-cards
+# 打开 http://127.0.0.1:4173/
+```
+
+生成的页面本身零依赖：没有脚本、没有外部字体、没有内嵌图片，只有 CSS 和相对链接，所以能直接扔进任何静态托管。缩略图带 `loading="lazy"` 和 `aspect-ratio`，`hero.png` 一张好几 MB 也不会把首屏拖垮。
+
+> 目录名里有中文或空格都没问题（按路径段转义）；`card-config.json` 缺失、JSON 坏掉、或者卡还没跑出 `web/` 的，会被跳过而不是留一个点进去 404 的死链。
+
+回归测试：`python3 scripts/test_list_cards.py`。
+
+---
+
 ## 🔧 可以调的旋钮
 
 流水线出厂就是一套顺手的参数，也都留了口子：
@@ -163,6 +189,7 @@ RuiC-card-skill/
 │   ├── validate_assets.py      # 四层图体检（棋盘格假透明图自动转真 alpha）
 │   ├── checkerboard_to_alpha.py # 棋盘格底确定性抠透明（附回归测试）
 │   ├── run_pipeline.py         # 一键流水线
+│   ├── list_cards.py           # 把一个卡库目录铺成静态索引页（附回归测试）
 │   └── package_skill.py        # 纯文本打包成可分享的 ZIP
 └── assets/
     └── web-template/           # 响应式 Three.js 查看器
