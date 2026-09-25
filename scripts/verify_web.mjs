@@ -322,7 +322,9 @@ async function desktopPass(base, out) {
     }))()`);
     check("card metadata rendered", !!meta.title && meta.cfgTitle === meta.title, `${meta.title} / ${meta.subtitle} / ${meta.edition}`);
     check("exported model reached the page", String(meta.model).includes(".glb"), String(meta.model));
-    const wanted = [meta.tex.subject, meta.tex.background, meta.tex.text, meta.tex.line, meta.tex.effects].filter((t) => t && t[0] !== null);
+    // A 1x1 entry is the placeholder the viewer substitutes for an absent optional
+    // effects layer; it carries no canvas of its own, so it must not read as a size mismatch.
+    const wanted = [meta.tex.subject, meta.tex.background, meta.tex.text, meta.tex.line, meta.tex.effects].filter((t) => t && t[0] !== null && !(t[0] === 1 && t[1] === 1));
     check("image layers uploaded at one shared canvas", wanted.length >= 4 && new Set(wanted.map((t) => t.join("x"))).size === 1, JSON.stringify(meta.tex));
     const cfg = await cdp.eval("(()=>{const p=window.__holo.config.parameters||{};return {d:p.subjectDepth,b:p.backgroundDepth,f:p.effectsDepth,s:p.subjectScale}})()");
     check(
@@ -386,8 +388,15 @@ async function desktopPass(base, out) {
     await drag(200, 60);
     await cdp.eval("document.getElementById('stage').focus()");
     await cdp.eval("window.__holo.reset()");
-    await sleep(700);
-    const rotReset = await rot();
+    // reset() eases toward the study pose frame by frame with no fixed duration, so a
+    // software-rendered headless browser can legitimately need well over 700 ms. Poll to
+    // the same tolerance instead of racing a fixed sleep; the assertion is unchanged.
+    const rotDeadline = Date.now() + 6000;
+    let rotReset = await rot();
+    while (Date.now() < rotDeadline && !(Math.abs(rotReset[0] + 0.035) < 0.02 && Math.abs(rotReset[1] + 0.15) < 0.02)) {
+      await sleep(150);
+      rotReset = await rot();
+    }
     const resetState = await cdp.eval("window.__holo.getState()");
     // reset() parks the card in its designed three-quarter study pose (-0.035, -0.15).
     check(

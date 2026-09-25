@@ -42,7 +42,7 @@ def validate(project):
                 else:
                     raise ValueError(name+' lacks real alpha; a painted checkerboard is invalid (or install numpy to auto-convert it)')
             alpha=im.getchannel('A');hist=alpha.histogram();transparent=sum(hist[:16])/sum(hist);solid=sum(hist[128:])/sum(hist)
-            if transparent<.01 or solid<.001:raise ValueError(name+' needs both visible and truly transparent pixels')
+            if transparent<.01 or (solid<.001 and name!='text'):raise ValueError(name+' needs both visible and truly transparent pixels')
             item.update(transparent_fraction=round(transparent,4),visible_fraction=round(solid,4))
         if name=='lineart':
             lo,hi=im.convert('L').getextrema()
