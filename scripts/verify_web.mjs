@@ -322,7 +322,9 @@ async function desktopPass(base, out) {
     }))()`);
     check("card metadata rendered", !!meta.title && meta.cfgTitle === meta.title, `${meta.title} / ${meta.subtitle} / ${meta.edition}`);
     check("exported model reached the page", String(meta.model).includes(".glb"), String(meta.model));
-    const wanted = [meta.tex.subject, meta.tex.background, meta.tex.text, meta.tex.line, meta.tex.effects].filter((t) => t && t[0] !== null);
+    // 1x1 entries are the viewer's DataTexture fallbacks for absent optional
+    // layers (validate_assets forbids real artwork under 256px), not layers.
+    const wanted = [meta.tex.subject, meta.tex.background, meta.tex.text, meta.tex.line, meta.tex.effects].filter((t) => t && t[0] !== null && !(t[0] === 1 && t[1] === 1));
     check("image layers uploaded at one shared canvas", wanted.length >= 4 && new Set(wanted.map((t) => t.join("x"))).size === 1, JSON.stringify(meta.tex));
     const cfg = await cdp.eval("(()=>{const p=window.__holo.config.parameters||{};return {d:p.subjectDepth,b:p.backgroundDepth,f:p.effectsDepth,s:p.subjectScale}})()");
     check(
