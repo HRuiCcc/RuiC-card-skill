@@ -181,27 +181,90 @@ def perimeter(w,h,r,n=12):
             a=math.radians(start+j*90/n); pts.append((cx+r*math.cos(a),cy+r*math.sin(a)))
     return pts
 
-def plane(name,w,h,mat,y=0,thickness=0,coll=cardcol):
-    pts=perimeter(w,h,.20); N=len(pts); verts=[(x,z,0) for x,z in pts]; faces=[tuple(range(N))]
+CW,CH=6.3,9.45  # card canvas in world units; the UV basis shared by every layer
+
+# --- Die-cut outline support -------------------------------------------------
+# An optional config "outline" turns the rounded-rectangle card into an arbitrary
+# silhouette (a corner notch, a shield, a ticket stub). It changes GEOMETRY ONLY:
+# the four layer PNGs stay one shared canvas and every vertex UV is still
+# canvas-mapped (co.x/CW+.5, co.y/CH+.5), so the outline crops into the layers
+# instead of stretching them. Normalising UV by the outline's own bounding box
+# would break layer registration -- never do that.
+# NOTE: the viewer's drop shadow (app.js) is still a fixed rectangle mesh, so a
+# die-cut card casts a rectangular shadow at oblique angles; that is a
+# viewer-side follow-up, out of scope for the build.
+def outline_points(cfg):
+    """Resolve config "outline" to canvas-centred (x,z) points, or None for rect.
+
+    "outline" is either a path (preferred) to a JSON file holding
+    {"points": [[u, v], ...]} in canvas UV (0..1, u right, v down), or -- for a
+    small hand-pasted loop -- an inline list of the same [u, v] pairs (capped at
+    200 so a dense contour cannot bloat the config/mesh). Absent/null/empty keeps
+    the default rounded rectangle.
+    """
+    ref=cfg.get('outline')
+    if not ref:return None
+    if isinstance(ref,str):
+        path=R/ref
+        if not path.exists():raise RuntimeError('outline path not found: '+str(path)+' (set card-config.json "outline" to null for the default rounded rectangle)')
+        pts=json.loads(path.read_text(encoding='utf-8-sig')).get('points')
+    else:
+        pts=ref
+    if not pts:return None
+    if len(pts)>200:raise RuntimeError('outline has '+str(len(pts))+' points; keep it under 200 (simplify the contour) so the config and mesh stay small')
+    P=[((u-.5)*CW,(.5-v)*CH) for u,v in pts]
+    a2=sum(P[i][0]*P[(i+1)%len(P)][1]-P[(i+1)%len(P)][0]*P[i][1] for i in range(len(P)))
+    if a2<0:P.reverse()  # match perimeter()'s CCW-positive winding in (x,z)
+    return P
+
+def triangulate(pts):
+    from mathutils.geometry import tessellate_polygon
+    # tessellate_polygon takes a LIST OF POLYLINES (one closed loop here), not a
+    # flat list of Vectors -- passing flat vectors raises "parse coord".
+    return [tuple(t) for t in tessellate_polygon([[Vector((x,z,0.)) for x,z in pts]])]
+
+def inset(pts,width):
+    """Miter inward offset for the trim rings; the clamp avoids spike corners."""
+    out=[]
+    for i in range(len(pts)):
+        px,pz=pts[i]; ax,az=pts[i-1]; bx,bz=pts[(i+1)%len(pts)]
+        d0=(px-ax,pz-az); l0=math.hypot(*d0) or 1; d0=(d0[0]/l0,d0[1]/l0)
+        d1=(bx-px,bz-pz); l1=math.hypot(*d1) or 1; d1=(d1[0]/l1,d1[1]/l1)
+        n0=(-d0[1],d0[0]); n1=(-d1[1],d1[0])
+        bis=(n0[0]+n1[0],n0[1]+n1[1]); lb=math.hypot(*bis) or 1; bis=(bis[0]/lb,bis[1]/lb)
+        c=max(.25,bis[0]*n1[0]+bis[1]*n1[1])
+        out.append((px+bis[0]*width/c,pz+bis[1]*width/c))
+    return out
+
+def plane(name,w,h,mat,y=0,thickness=0,coll=cardcol,outline=None):
+    if outline is not None:
+        pts=outline; tri=triangulate(pts)  # already canvas-centred; UV stays canvas-mapped via w,h
+    else:
+        pts=perimeter(w,h,.20); tri=[tuple(range(len(pts)))]
+    N=len(pts); verts=[(x,z,0) for x,z in pts]; faces=[tuple(t) for t in tri]; nf=len(faces)
     if thickness:
-        verts += [(x,z,-thickness) for x,z in pts]; faces += [tuple(reversed(range(N,2*N)))]
+        verts += [(x,z,-thickness) for x,z in pts]
+        faces += [tuple(N+i for i in reversed(t)) for t in tri]
         faces += [(i,(i+1)%N,(i+1)%N+N,i+N) for i in range(N)]
     me=bpy.data.meshes.new(name+'网格'); me.from_pydata(verts,[],faces); me.update(); o=bpy.data.objects.new(name,me); coll.objects.link(o)
     o.location=(0,0,0); o.rotation_euler=(math.pi/2,0,0); o.location.y=y; o.parent=pivot
     me.materials.append(mat)
     if thickness:
+        # faces are [front(nf) | back(nf) | sides(N)]; for the rounded rectangle
+        # nf==1, which reproduces the original index==1/>1 assignment exactly.
         me.materials.append(edge); me.materials.append(back)
         for pol in me.polygons:
-            if pol.index==1: pol.material_index=2
-            elif pol.index>1: pol.material_index=1
+            if nf<=pol.index<2*nf: pol.material_index=2
+            elif pol.index>=2*nf: pol.material_index=1
     layer=me.uv_layers.new(name='UVMap')
     for pol in me.polygons:
         for li in pol.loop_indices:
             co=me.vertices[me.loops[li].vertex_index].co; layer.data[li].uv=(co.x/w+.5,co.y/h+.5)
     o['导入约定']='Alt+G 清空位置；物体模式 X=90°，未应用旋转。'
     return o
-card=plane('主体平面 · 完整视差合成',6.3,9.45,main,0,.045)
-textob=plane('文字平面 · Alpha PNG',6.3,9.45,textmat,-.014)
+OL=outline_points(CFG)
+card=plane('主体平面 · 完整视差合成',CW,CH,main,0,.045,outline=OL)
+textob=plane('文字平面 · Alpha PNG',CW,CH,textmat,-.014,outline=OL)
 # Relief mode: subject / effects / text become separate physical planes (lightbox
 # diorama). The front face keeps only background + foil laminate; the subject mix
 # is disconnected so the character does not double-draw.
@@ -279,8 +342,14 @@ if RELIEF:
 bgmat,bgt=material('06 · 独立背景参考'); bpg=parallax(bgt,'背景复用 · −0.2',1,-.2,-500,100); btex=tex(bgt,'background','背景 PNG',bpg,-280,100); bbs=bsdf(bgt,'背景原理化',0,100); link(bgt,btex,0,bbs,'Base Color'); bout=node(bgt,'ShaderNodeOutputMaterial','表面',350,100); link(bgt,bbs,0,bout,0)
 bgo=plane('背景平面 · 已在主体材质合成',6.3,9.45,bgmat,.025,coll=refcol); bgo.hide_render=True; bgo.hide_set(True)
 
-def ring(name,w,h,width,mat,y):
-    outer=perimeter(w,h,.20); inner=perimeter(w-width*2,h-width*2,max(.20-width,.01)); N=len(outer)
+def ring(name,w,h,width,mat,y,base=0,outline=None):
+    if outline is not None:
+        # double trim ring along the silhouette: outer at `base`, inner at
+        # `base+width`; UV uses the canvas dims (w,h) so the holo edge matches the faces.
+        outer=inset(outline,base); inner=inset(outline,base+width)
+    else:
+        outer=perimeter(w,h,.20); inner=perimeter(w-width*2,h-width*2,max(.20-width,.01))
+    N=len(outer)
     verts=[(x,z,0) for x,z in outer+inner]; faces=[(i,(i+1)%N,(i+1)%N+N,i+N) for i in range(N)]
     me=bpy.data.meshes.new(name); me.from_pydata(verts,[],faces); me.update(); ob=bpy.data.objects.new(name,me); cardcol.objects.link(ob); ob.parent=pivot; ob.rotation_euler.x=math.pi/2; ob.location.y=y; me.materials.append(mat)
     uv=me.uv_layers.new(name='UVMap')
@@ -288,8 +357,12 @@ def ring(name,w,h,width,mat,y):
         for li in pol.loop_indices:
             v=me.vertices[me.loops[li].vertex_index].co; uv.data[li].uv=(v.x/w+.5,v.y/h+.5)
     return ob
-ring('外圈 · 全息压边',6.3,9.45,.060,edge,-.025)
-ring('内圈 · 古金细边',6.13,9.28,.018,gold,-.026)
+if OL:
+    ring('外圈 · 全息压边',CW,CH,.060,edge,-.025,base=0,outline=OL)
+    ring('内圈 · 古金细边',CW,CH,.018,gold,-.026,base=.085,outline=OL)
+else:
+    ring('外圈 · 全息压边',6.3,9.45,.060,edge,-.025)
+    ring('内圈 · 古金细边',6.13,9.28,.018,gold,-.026)
 for frame,ang in [(1,(-3,0,-14)),(25,(2,0,0)),(49,(4,0,14)),(73,(-2,0,0)),(96,(-3,0,-14))]:
     pivot.rotation_euler=[math.radians(x) for x in ang]; pivot.keyframe_insert('rotation_euler',frame=frame)
 # Camera and studio lights.
