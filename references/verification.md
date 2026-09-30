@@ -16,6 +16,7 @@ A `ready` flag, a saved file or a matching grep is never evidence that the card 
 ## Exported geometry
 
 - Parse `web/assets/card.glb` and confirm it carries meshes and the browser material-role names: `web_front`, `web_edge`, `web_back`, `web_gold` (relief mode adds `web_subject`, `web_effects`, `web_text`). The export is geometry plus role materials, not a render of the finished card.
+- For a die-cut card (config `outline` set), confirm the `web_front` mesh has exactly `len(outline)` vertices — the rounded rectangle has 52 — and look at a tilt render to confirm the silhouette crops the layers without stretching them. `verify_web.mjs` asserts the vertex count automatically when an outline is configured, and skips the check for a rectangle.
 - Confirm `web/card-config.json` was rewritten with the resolved asset paths and the layer depths the page should start from.
 
 ## The running page

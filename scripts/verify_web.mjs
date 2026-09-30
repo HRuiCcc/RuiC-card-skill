@@ -289,6 +289,39 @@ const waitReady = async (cdp, timeout = 30000) => {
 
 const same = (a, b) => a === b;
 
+// Die-cut inspection (refs #14): read the exported GLB's front-face vertex count
+// and the configured outline length straight from disk, so the check verifies the
+// real export rather than in-page state. Returns null for a rounded-rectangle card
+// (no outline), which keeps the rectangle's check count unchanged.
+function glbFrontVertexCount(file) {
+  const buf = readFileSync(file);
+  const jsonLen = buf.readUInt32LE(12); // GLB header is 12 bytes, then the JSON chunk
+  const json = JSON.parse(buf.subarray(20, 20 + jsonLen).toString("utf8"));
+  const mats = json.materials || [];
+  for (const mesh of json.meshes || []) {
+    for (const prim of mesh.primitives || []) {
+      const mat = prim.material != null ? mats[prim.material] : null;
+      if (mat && mat.name === "web_front") return json.accessors[prim.attributes.POSITION].count;
+    }
+  }
+  return null;
+}
+
+function inspectDieCut(dir) {
+  const BOM = new RegExp("^\\uFEFF");
+  const readJson = (p) => JSON.parse(readFileSync(p, "utf8").replace(BOM, ""));
+  let cfg;
+  try { cfg = readJson(path.join(dir, "card-config.json")); } catch { return null; }
+  const ref = cfg.outline;
+  if (!ref) return null; // rounded rectangle: nothing die-cut to verify
+  let points;
+  if (typeof ref === "string") points = (readJson(path.join(dir, ref)).points || []).length;
+  else if (Array.isArray(ref)) points = ref.length;
+  else return null;
+  const front = glbFrontVertexCount(path.join(dir, "web", "assets", "card.glb"));
+  return { points, front };
+}
+
 // ---------------------------------------------------------------- desktop pass
 async function desktopPass(base, out) {
   const checks = [];
@@ -322,6 +355,23 @@ async function desktopPass(base, out) {
     }))()`);
     check("card metadata rendered", !!meta.title && meta.cfgTitle === meta.title, `${meta.title} / ${meta.subtitle} / ${meta.edition}`);
     check("exported model reached the page", String(meta.model).includes(".glb"), String(meta.model));
+    // Die-cut geometry (refs #14): with an outline configured, the exported front
+    // face must carry exactly that many vertices (the rounded rectangle is 52).
+    // Skipped for a rectangle, so its check count is unchanged. Needs the project
+    // dir, so it is a no-op when verify_web is pointed at a bare URL.
+    if (project) {
+      let dieCut = null, dieErr = null;
+      try { dieCut = inspectDieCut(project); } catch (e) { dieErr = e.message; }
+      if (dieCut) {
+        check(
+          "die-cut front mesh matches the outline",
+          dieCut.front === dieCut.points && dieCut.points !== 52,
+          `outline ${dieCut.points} pts, web_front ${dieCut.front} verts (rounded-rect default 52)`,
+        );
+      } else if (dieErr) {
+        check("die-cut front mesh matches the outline", false, `outline requested but unreadable: ${dieErr}`);
+      }
+    }
     const wanted = [meta.tex.subject, meta.tex.background, meta.tex.text, meta.tex.line, meta.tex.effects].filter((t) => t && t[0] !== null);
     check("image layers uploaded at one shared canvas", wanted.length >= 4 && new Set(wanted.map((t) => t.join("x"))).size === 1, JSON.stringify(meta.tex));
     const cfg = await cdp.eval("(()=>{const p=window.__holo.config.parameters||{};return {d:p.subjectDepth,b:p.backgroundDepth,f:p.effectsDepth,s:p.subjectScale}})()");
