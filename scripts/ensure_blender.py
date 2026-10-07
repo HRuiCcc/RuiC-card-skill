@@ -39,7 +39,7 @@ def ensure_blender(project,override=None):
         suffix='linux-x64.tar.xz'
     elif system=='Darwin':suffix='macos-arm64.dmg' if 'arm' in machine else 'macos-x64.dmg'
     else:raise RuntimeError('Unsupported platform: '+system)
-    listing=urllib.request.urlopen(BASE,timeout=30).read().decode('utf8')
+    listing=urllib.request.urlopen(urllib.request.Request(BASE,headers={'User-Agent':'Holo-Card-Studio/1.0'}),timeout=30).read().decode('utf8')
     found=set(re.findall(r'blender-(4\.5\.\d+)-'+re.escape(suffix),listing))
     if not found:raise RuntimeError('No matching official Blender package for '+suffix)
     version=max(found,key=lambda v:tuple(map(int,v.split('.'))));name='blender-'+version+'-'+suffix
