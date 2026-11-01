@@ -191,4 +191,5 @@ python scripts/package_skill.py RuiC-card-skill --out ~/Desktop/RuiC-card-skill.
 <div align="center">
   <img src="assets/wechat-donate.png" width="300" alt="微信赞赏码" />
   <p><strong>微信扫码赞赏</strong></p>
+  <p>微号：<strong>hrc_rch</strong>（说明来意）</p>
 </div>
