@@ -29,7 +29,7 @@
  */
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -219,6 +219,60 @@ class Cdp {
   }
 }
 
+/**
+ * Delete a profile directory once the browser has released it.
+ *
+ * Windows keeps a killed browser's file handles open for a moment, so the rmSync
+ * that used to follow SIGKILL threw EBUSY, was swallowed by an empty catch, and
+ * leaked a whole profile (tens of MB) into the temp directory on every run.
+ */
+async function removeProfile(profile, child) {
+  const attempt = () => {
+    try {
+      rmSync(profile, { recursive: true, force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (attempt()) return true;
+  if (child && child.exitCode === null && child.signalCode === null) {
+    await new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        child.removeListener("exit", done);
+        resolve();
+      };
+      const timer = setTimeout(done, 5000);
+      child.once("exit", done);
+    });
+  }
+  for (let i = 0; i < 24; i++) {
+    if (attempt()) return true;
+    await sleep(250);
+  }
+  return attempt();
+}
+
+/** Sweep profiles an earlier interrupted run left behind. */
+function sweepStaleProfiles(baseDir = tmpdir(), maxAgeMs = 6 * 60 * 60 * 1000) {
+  let names = [];
+  try {
+    names = readdirSync(baseDir);
+  } catch {
+    return;
+  }
+  const cutoff = Date.now() - maxAgeMs;
+  for (const name of names) {
+    if (!name.startsWith("holo-profile-")) continue;
+    const dir = path.join(baseDir, name);
+    try {
+      if (statSync(dir).mtimeMs > cutoff) continue;
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 /** Launch a headless instance and attach to its page target. */
 async function launch({ width, height, extraFlags = [] }, out) {
   const port = await freePort();
@@ -259,7 +313,7 @@ async function launch({ width, height, extraFlags = [] }, out) {
   }
   if (!targetInfo) {
     try { child.kill("SIGKILL"); } catch {}
-    try { rmSync(profile, { recursive: true, force: true }); } catch {}
+    await removeProfile(profile, child);
     throw new Error(`${browser} did not expose a page target${stderr.trim() ? `:\n${stderr.trim()}` : ""}`);
   }
   const ws = new WebSocket(targetInfo.webSocketDebuggerUrl);
@@ -269,10 +323,10 @@ async function launch({ width, height, extraFlags = [] }, out) {
   });
   const cdp = new Cdp(ws);
   for (const d of ["Page", "Runtime", "Log", "Network", "DOM"]) await cdp.send(`${d}.enable`);
-  const close = () => {
+  const close = async () => {
     try { ws.close(); } catch {}
     try { child.kill("SIGKILL"); } catch {}
-    try { rmSync(profile, { recursive: true, force: true }); } catch {}
+    await removeProfile(profile, child);
   };
   return { cdp, close, port };
 }
@@ -501,7 +555,7 @@ async function desktopPass(base, out) {
     );
     return { checks, errors, failedRequests, downloads, requestedDownloadName: requestedName };
   } finally {
-    close();
+    await close();
   }
 }
 
@@ -552,11 +606,12 @@ async function mobilePass(base, out) {
     check("no console errors on mobile", cdp.consoleErrors.length === 0, cdp.consoleErrors.slice(0, 3).join(" | ") || "clean");
     return { checks };
   } finally {
-    close();
+    await close();
   }
 }
 
 // ---------------------------------------------------------------- run
+sweepStaleProfiles();
 let server = null;
 let base = target;
 if (isDir) {
