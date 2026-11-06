@@ -14,8 +14,12 @@ def main():
     validate(root);blender=ensure_blender(root,a.blender)
     cmd=[str(blender),'--background','--factory-startup','--python',str(scripts/'build_card.py'),'--',str(root)]
     if a.skip_render:cmd.append('--skip-render')
+    # Blender's background mode exits 0 even when the --python script raises, so
+    # check=True cannot see a build_card crash. Guard on artifact freshness.
+    m0=(root/'card.blend').stat().st_mtime if (root/'card.blend').exists() else 0.0
     subprocess.run(cmd,check=True)
     if not (root/'card.blend').exists():raise RuntimeError('Blender did not save card.blend; inspect its log')
+    if (root/'card.blend').stat().st_mtime<=m0:raise RuntimeError('build_card.py crashed inside Blender (background mode still exits 0); card.blend was not rewritten. Re-run and read the Blender log')
     subprocess.run([str(blender),'--background','--python',str(scripts/'export_web.py'),'--',str(root)],check=True)
     if not (root/'web'/'assets'/'card.glb').exists():raise RuntimeError('GLB export failed')
     web=root/'web';shutil.copytree(skill/'assets'/'web-template',web,dirs_exist_ok=True)
