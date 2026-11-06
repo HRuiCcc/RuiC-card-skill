@@ -6,6 +6,7 @@
   "edition": "001 / 001",
   "collection": "个人全息典藏",
   "description": "关于这张卡的一句话。",
+  "outline": null,
   "assets": {
     "model": "./assets/card.glb",
     "subject": "./assets/subject.png",
